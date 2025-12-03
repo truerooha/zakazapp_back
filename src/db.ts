@@ -57,6 +57,43 @@ export const initDb = (): Promise<void> => {
         )`
       );
 
+      // Таблица настроек общего заказа (одна строка с id = 1)
+      // Лёгкая миграция схемы orders: добавляем userId и orderDate при отсутствии
+      db.all("PRAGMA table_info(orders)", (ordersErr, rows: any[]) => {
+        if (ordersErr) {
+          reject(ordersErr);
+          return;
+        }
+
+        const hasUserId = rows.some((r) => r.name === "userId");
+        const hasOrderDate = rows.some((r) => r.name === "orderDate");
+
+        if (!hasUserId) {
+          db.run(`ALTER TABLE orders ADD COLUMN userId TEXT`, (alterErr) => {
+            if (alterErr) {
+              // Игнорируем ошибку, если колонка уже существует или другая некритичная проблема
+              // eslint-disable-next-line no-console
+              console.error("Ошибка миграции userId в таблице orders", alterErr);
+            }
+          });
+        }
+
+        if (!hasOrderDate) {
+          db.run(
+            `ALTER TABLE orders ADD COLUMN orderDate TEXT`,
+            (alterErr) => {
+              if (alterErr) {
+                // eslint-disable-next-line no-console
+                console.error(
+                  "Ошибка миграции orderDate в таблице orders",
+                  alterErr
+                );
+              }
+            }
+          );
+        }
+      });
+
       // Сидирование, если таблицы пустые
       db.get("SELECT COUNT(*) as count FROM categories", (err, row: any) => {
         if (err) {
