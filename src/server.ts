@@ -157,7 +157,8 @@ app.get("/api/orders/summary-today", (_req, res) => {
            d.description,
            d.price,
            d.categoryId,
-           SUM(oi.quantity) as totalQuantity
+           SUM(oi.quantity) as totalQuantity,
+           GROUP_CONCAT(DISTINCT o.userId) as users
     FROM orders o
     JOIN order_items oi ON oi.orderId = o.id
     JOIN dishes d ON oi.dishId = d.id
@@ -171,16 +172,24 @@ app.get("/api/orders/summary-today", (_req, res) => {
       return;
     }
 
-    const items = rows.map((r: any) => ({
-      dish: {
-        id: r.id,
-        name: r.name,
-        description: r.description,
-        price: r.price,
-        categoryId: r.categoryId
-      },
-      quantity: r.totalQuantity
-    }));
+    const items = rows.map((r: any) => {
+      const users =
+        typeof r.users === "string" && r.users.length > 0
+          ? r.users.split(",").filter(Boolean)
+          : [];
+
+      return {
+        dish: {
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          price: r.price,
+          categoryId: r.categoryId
+        },
+        quantity: r.totalQuantity,
+        users
+      };
+    });
 
     const baseTotal = items.reduce(
       (sum: number, it: any) => sum + it.dish.price * it.quantity,
@@ -202,6 +211,92 @@ app.get("/api/orders/summary-today", (_req, res) => {
       deliveryFee: Number(settings.deliveryFee),
       finalTotal,
       closeAt: settings.closeAt
+    });
+  });
+});
+
+// Получить персональные суммы за сегодня (для телеграм-бота)
+app.get("/api/orders/personal-today", (_req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const perUserSql = `
+    SELECT o.userId as userId,
+           SUM(oi.quantity * d.price) AS userTotal
+    FROM orders o
+    JOIN order_items oi ON oi.orderId = o.id
+    JOIN dishes d ON oi.dishId = d.id
+    WHERE o.orderDate = ?
+    GROUP BY o.userId
+  `;
+
+  db.all(perUserSql, [today], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: "DB error" });
+      return;
+    }
+
+    if (!rows || rows.length === 0) {
+      res.json({
+        users: [],
+        baseTotal: 0,
+        discountPercent: 0,
+        discountAmount: 0,
+        deliveryFee: 0,
+        finalTotal: 0
+      });
+      return;
+    }
+
+    const settings = readOrderSettings();
+    const deliveryFee = Number(settings.deliveryFee) || 0;
+    const discountPercent = Number(settings.discountPercent) || 0;
+
+    const usersRaw = rows.map((r: any) => ({
+      userId: r.userId as string,
+      baseTotal: Number(r.userTotal) || 0
+    }));
+
+    const baseTotal = usersRaw.reduce(
+      (sum, u) => sum + u.baseTotal,
+      0
+    );
+
+    const discountAmount = baseTotal
+      ? Math.round((baseTotal * discountPercent) / 100)
+      : 0;
+
+    const usersCount = usersRaw.length;
+    const deliveryShare = usersCount > 0 ? deliveryFee / usersCount : 0;
+
+    const users = usersRaw.map((u) => {
+      const userDiscount =
+        baseTotal > 0
+          ? Math.round((u.baseTotal / baseTotal) * discountAmount)
+          : 0;
+
+      const finalTotal = u.baseTotal - userDiscount + deliveryShare;
+
+      return {
+        userId: u.userId,
+        baseTotal: u.baseTotal,
+        discount: userDiscount,
+        deliveryShare,
+        finalTotal
+      };
+    });
+
+    const finalTotal = users.reduce(
+      (sum, u) => sum + u.finalTotal,
+      0
+    );
+
+    res.json({
+      users,
+      baseTotal,
+      discountPercent,
+      discountAmount,
+      deliveryFee,
+      finalTotal
     });
   });
 });
