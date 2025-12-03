@@ -5,15 +5,23 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev:bot": "ts-node-dev --respawn --transpile-only src/telegramBot.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:bot\"",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "start:bot": "node dist/telegramBot.js",
+    "start:all": "concurrently \"npm start\" \"npm run start:bot\""
   },
   "dependencies": {
+    "axios": "^1.7.7",
     "cors": "^2.8.5",
     "express": "^4.21.1",
+    "dotenv": "^16.4.5",
+    "telegraf": "^4.16.3",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "concurrently": "^9.0.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^22.7.4",
