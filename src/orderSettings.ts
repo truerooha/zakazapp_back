@@ -7,8 +7,17 @@ export interface OrderSettings {
   closeAt: string | null;
 }
 
-// Конфиг лежит рядом с этим файлом: backend/src/order-settings.json
-const CONFIG_PATH = path.join(__dirname, "order-settings.json");
+// Используем DATA_DIR из переменных окружения для продакшена (Railway Volume)
+// Если не задано - используем дефолтный путь для локальной разработки
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..");
+
+// Убеждаемся, что директория существует (важно для Railway Volume)
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Конфиг лежит в DATA_DIR: либо в volume (продакшен), либо рядом с dist (локально)
+const CONFIG_PATH = path.join(DATA_DIR, "order-settings.json");
 
 const defaultSettings: OrderSettings = {
   discountPercent: 0,

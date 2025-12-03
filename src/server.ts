@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { db, initDb } from "./db";
 import { readOrderSettings, writeOrderSettings } from "./orderSettings";
+import { seedFromMenu } from "./seedFromMenu";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -351,6 +352,28 @@ app.delete("/api/orders/:id", (req, res) => {
     }
     res.json({ deleted: this.changes > 0 });
   });
+});
+
+// Админ-эндпоинт: пересидировать БД из menu.json
+// Защита через секретный ключ в заголовке X-Admin-Key или query-параметре ?key=
+const ADMIN_KEY = process.env.ADMIN_KEY || "reseed-secret-key-change-me";
+
+app.post("/api/admin/reseed", async (req, res) => {
+  const key = req.headers["x-admin-key"] || req.query.key;
+
+  if (key !== ADMIN_KEY) {
+    res.status(401).json({ error: "Unauthorized. Provide X-Admin-Key header or ?key= query param" });
+    return;
+  }
+
+  try {
+    await seedFromMenu(db);
+    res.json({ success: true, message: "Database reseeded from menu.json" });
+  } catch (err: any) {
+    // eslint-disable-next-line no-console
+    console.error("Reseed error:", err);
+    res.status(500).json({ error: err.message || "Reseed failed" });
+  }
 });
 
 initDb()

@@ -1,8 +1,18 @@
 import sqlite3 from "sqlite3";
 import path from "path";
+import fs from "fs";
 import { categories, dishes, allowedUsersMock } from "./mockDataRuntime";
 
-const DB_PATH = path.join(__dirname, "..", "data.sqlite");
+// Используем DATA_DIR из переменных окружения для продакшена (Railway Volume)
+// Если не задано - используем дефолтный путь для локальной разработки
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..");
+
+// Убеждаемся, что директория существует (важно для Railway Volume)
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const DB_PATH = path.join(DATA_DIR, "data.sqlite");
 
 sqlite3.verbose();
 

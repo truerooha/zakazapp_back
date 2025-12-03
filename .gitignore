@@ -3,6 +3,10 @@ node_modules/
 dist/
 .vite/
 
+# База данных SQLite (локальная, не коммитим)
+data.sqlite
+*.sqlite
+
 # Локальные env-файлы
 .env
 .env.local
